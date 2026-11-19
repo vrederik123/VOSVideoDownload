@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.91"
+set "VERSION=1.02.90"
 set "VERSION_TYPE=DEVELOPMENT"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -91,12 +91,31 @@ call :banner
 echo %RED%CHECKING FOR VOSVIDEODOWNLOAD UPDATES...%RESET%
 set "updateFile=%TEMP%\VOSVideoDownload-latest-%RANDOM%.bat"
 set "updateHelper=%TEMP%\VOSVideoDownload-update-%RANDOM%.bat"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%UPDATE_URL%?cache=%RANDOM%%RANDOM%" "%updateFile%" >nul 2>&1
+set "updateUrl=%UPDATE_URL%?cache=%RANDOM%%RANDOM%"
+where curl.exe >nul 2>&1
+if not errorlevel 1 (
+    curl.exe --location --fail --silent --show-error --max-time 30 "%updateUrl%" --output "%updateFile%"
+    if errorlevel 1 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%updateUrl%" "%updateFile%" >nul 2>&1
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%updateUrl%" "%updateFile%"
+)
+if not exist "%updateFile%" (
+    goto update_download_failed
+)
+for %%A in ("%updateFile%") do if %%~zA LSS 100 goto update_download_failed
+goto update_download_continue
+
+:update_download_failed
 if not exist "%updateFile%" (
     echo %RED%UNABLE TO DOWNLOAD THE UPDATE. CHECK THE UPDATE URL AND YOUR INTERNET CONNECTION.%RESET%
-    set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
-    goto menu
+) else (
+    del /f /q "%updateFile%" >nul 2>&1
+    echo %RED%THE UPDATE DOWNLOAD WAS EMPTY OR INCOMPLETE.%RESET%
 )
+set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
+goto menu
+
+:update_download_continue
 set "remoteVersion="
 for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
 if "%remoteVersion%"=="" (
