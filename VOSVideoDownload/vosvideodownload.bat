@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.70"
+set "VERSION=1.02.80"
 set "VERSION_TYPE=DEVELOPMENT"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -63,9 +63,9 @@ if not exist "%~dp0DEPENDENCIES\yt-dlp.exe" (
     goto download_menu
 )
 if /i "%METADATA%"=="ENABLED" (
-    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%% (title)s/%%(title)s.%%(ext)s" %A% --write-description --write-thumbnail --convert-thumbnails jpg "%url%"
+    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%%(title)s/%%(title)s.%%(ext)s" %A% --write-description --write-thumbnail --convert-thumbnails jpg "%url%"
 ) else (
-    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%% (title)s.%%(ext)s" %A% "%url%"
+    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%%(title)s.%%(ext)s" %A% "%url%"
 )
 if errorlevel 1 goto download_failed
 echo.&echo %GREEN%DONE! SAVED TO THE VIDEOS FOLDER.%RESET%
@@ -82,14 +82,14 @@ call :banner
 echo %RED%CHECKING FOR VOSVIDEODOWNLOAD UPDATES...%RESET%
 set "updateFile=%TEMP%\VOSVideoDownload-latest-%RANDOM%.bat"
 set "updateHelper=%TEMP%\VOSVideoDownload-update-%RANDOM%.bat"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri $args[0] -OutFile $args[1]" "%UPDATE_URL%" "%updateFile%" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%UPDATE_URL%' -OutFile '%updateFile%'" >nul 2>&1
 if not exist "%updateFile%" (
     echo %RED%UNABLE TO DOWNLOAD THE UPDATE. CHECK THE UPDATE URL AND YOUR INTERNET CONNECTION.%RESET%
     set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
     goto menu
 )
 set "remoteVersion="
-for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath '%updateFile%'; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }"') do set "remoteVersion=%%A"
 if "%remoteVersion%"=="" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE DOWNLOADED UPDATE DOES NOT CONTAIN A VALID VERSION.%RESET%
@@ -97,7 +97,7 @@ if "%remoteVersion%"=="" (
     goto menu
 )
 set "currentVersion=%VERSION%"
-for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%currentVersion%"') do set "updateStatus=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]'%remoteVersion%'; [version]$old=[version]'%currentVersion%'; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }"') do set "updateStatus=%%A"
 if "%updateStatus%"=="INVALID" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE UPDATE VERSION IS INVALID.%RESET%
@@ -111,8 +111,7 @@ if "%updateStatus%"=="CURRENT" (
     goto menu
 )
 echo %GREEN%UPDATE FOUND: %currentVersion% TO %remoteVersion%%RESET%
-echo %YELLOW%PRESS ENTER TO APPLY THE UPDATE AND RESTART.%RESET%
-set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
+set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
 (
     echo @echo off
     echo timeout /t 2 /nobreak ^>nul
@@ -258,7 +257,7 @@ goto dependencies
 call :banner
 for %%D in (yt-dlp ffmpeg ffprobe ffplay) do if exist "%~dp0DEPENDENCIES\%%D.exe" (set "st_%%D=%YELLOW%INSTALLED") else (set "st_%%D=%RED%NOT INSTALLED")
 set "vc=0"
-if exist "%~dp0VIDEOS\*" for /f %%A in ('powershell -NoProfile -Command "$p=$args[0]; if (Test-Path -LiteralPath $p) { (Get-ChildItem -LiteralPath $p -File -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\.(mp4|mp3|mkv|webm|m4a|wav|mov|avi|flv|ogg|opus|aac|wmv)$' } | Measure-Object).Count } else { 0 }" "%~dp0VIDEOS"') do set "vc=%%A"
+if exist "%~dp0VIDEOS\*" for /f %%A in ('powershell -NoProfile -Command "$p='%~dp0VIDEOS'; if (Test-Path -LiteralPath $p) { (Get-ChildItem -LiteralPath $p -File -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\.(mp4|mp3|mkv|webm|m4a|wav|mov|avi|flv|ogg|opus|aac|wmv)$' } | Measure-Object).Count } else { 0 }"') do set "vc=%%A"
 echo %RED%VOSVIDEODOWNLOAD SETTINGS%RESET%
 echo %GREEN%VERSION: %YELLOW%%VERSION% ^| %VERSION_TYPE%%RESET%
 echo %GREEN%INTENDED OPERATING SYSTEM: %YELLOW%%OPERATING_SYSTEM%%RESET%
