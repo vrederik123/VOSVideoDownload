@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.80"
+set "VERSION=1.02.90"
 set "VERSION_TYPE=DEVELOPMENT"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -14,9 +14,18 @@ powershell -NoProfile -Command "$ws=Add-Type -MemberDefinition '[DllImport(\"use
 set "PATH=%~dp0DEPENDENCIES;%PATH%"
 for /f "delims=" %%A in ('powershell -NoProfile -Command "[char]27"') do set "ESC=%%A"
 set "RED=%ESC%[91m"&set "DARKRED=%ESC%[31m"&set "ORANGE=%ESC%[38;5;208m"&set "YELLOW=%ESC%[93m"&set "GREEN=%ESC%[92m"&set "CYAN=%ESC%[96m"&set "RESET=%ESC%[0m"
-if not exist "%~dp0settings.txt" echo METADATA=DISABLED> "%~dp0settings.txt"
+set "PURPLE=%ESC%[35m"&set "PINK=%ESC%[95m"&set "WHITE=%ESC%[97m"
+if not exist "%~dp0settings.txt" (
+    echo METADATA=DISABLED> "%~dp0settings.txt"
+    echo FLAME=STANDARD>> "%~dp0settings.txt"
+)
 set "METADATA=DISABLED"
-for /f "usebackq tokens=1,2 delims==" %%A in ("%~dp0settings.txt") do if /i "%%A"=="METADATA" set "METADATA=%%B"
+set "FLAME=STANDARD"
+for /f "usebackq tokens=1,2 delims==" %%A in ("%~dp0settings.txt") do (
+    if /i "%%A"=="METADATA" set "METADATA=%%B"
+    if /i "%%A"=="FLAME" set "FLAME=%%B"
+)
+call :set_flame
 
 :menu
 call :banner
@@ -267,25 +276,88 @@ echo %GREEN% - FFMPEG: %st_ffmpeg%%RESET%
 echo %GREEN% - FFPROBE: %st_ffprobe%%RESET%
 echo %GREEN% - FFPLAY: %st_ffplay%%RESET%
 echo %GREEN%VIDEOS DOWNLOADED: %YELLOW%%vc%%RESET%&echo.
+echo %GREEN%SETTINGS%RESET%
 echo %GREEN%1: TOGGLE METADATA/THUMBNAIL: %YELLOW%%METADATA%%RESET%
+echo %GREEN%2: ASCII FLAME: %YELLOW%%FLAME_DISPLAY%%RESET%
 echo %CYAN%ENTER: BACK TO MAIN MENU%RESET%
 set "sc="&set /p "sc="
 if "%sc%"=="" goto menu
-if "%sc%"=="1" (if /i "%METADATA%"=="DISABLED" (set "METADATA=ENABLED"&echo METADATA=ENABLED> "%~dp0settings.txt") else (set "METADATA=DISABLED"&echo METADATA=DISABLED> "%~dp0settings.txt"))
+if "%sc%"=="1" (
+    if /i "%METADATA%"=="DISABLED" (set "METADATA=ENABLED") else (set "METADATA=DISABLED")
+    call :save_settings
+)
+if "%sc%"=="2" goto flame_settings
 goto settings
+
+:flame_settings
+call :banner
+echo %GREEN%ASCII FLAME SETTINGS%RESET%
+echo %GREEN%1: (STANDARD) RED-YELLOW FLAME%RESET%
+echo %GREEN%2: PURPLE-PINK FLAME%RESET%
+echo %GREEN%3: GREEN-WHITE FLAME%RESET%
+echo %GREEN%4: YELLOW-WHITE FLAME%RESET%
+echo %CYAN%ENTER: BACK TO SETTINGS%RESET%
+set "fc="&set /p "fc="
+if "%fc%"=="" goto settings
+if "%fc%"=="1" set "FLAME=STANDARD"
+if "%fc%"=="2" set "FLAME=PURPLE-PINK"
+if "%fc%"=="3" set "FLAME=GREEN-WHITE"
+if "%fc%"=="4" set "FLAME=YELLOW-WHITE"
+if not "%fc%"=="1" if not "%fc%"=="2" if not "%fc%"=="3" if not "%fc%"=="4" goto flame_settings
+call :set_flame
+call :save_settings
+goto settings
+
+:save_settings
+> "%~dp0settings.txt" echo METADATA=%METADATA%
+>> "%~dp0settings.txt" echo FLAME=%FLAME%
+exit /b
+
+:set_flame
+if /i "%FLAME%"=="PURPLE-PINK" (
+    set "FLAME_DISPLAY=PURPLE-PINK FLAME"
+    set "FLAME1=%PURPLE%"
+    set "FLAME2=%PINK%"
+    set "FLAME3=%PINK%"
+    set "FLAME4=%PINK%"
+    exit /b
+)
+if /i "%FLAME%"=="GREEN-WHITE" (
+    set "FLAME_DISPLAY=GREEN-WHITE FLAME"
+    set "FLAME1=%ESC%[32m"
+    set "FLAME2=%GREEN%"
+    set "FLAME3=%WHITE%"
+    set "FLAME4=%WHITE%"
+    exit /b
+)
+if /i "%FLAME%"=="YELLOW-WHITE" (
+    set "FLAME_DISPLAY=YELLOW-WHITE FLAME"
+    set "FLAME1=%ESC%[33m"
+    set "FLAME2=%YELLOW%"
+    set "FLAME3=%WHITE%"
+    set "FLAME4=%WHITE%"
+    exit /b
+)
+set "FLAME=STANDARD"
+set "FLAME_DISPLAY=RED-YELLOW FLAME"
+set "FLAME1=%DARKRED%"
+set "FLAME2=%RED%"
+set "FLAME3=%ORANGE%"
+set "FLAME4=%YELLOW%"
+exit /b
 
 :banner
 cls
 :: ESCAPE PIPE CHARACTERS (^|) IN ASCII ART TO PREVENT BATCH SYNTAX ERRORS
-echo %DARKRED% __     __   ___    ____     __     __  ___   ____    _____    ___  %RESET%
-echo %DARKRED% \ \   / /  / _ \  / ___^|    \ \   / / ^|_ _^| ^|  _ \  ^| ____^|  / _ \ %RESET%
-echo %RED%  \ \ / /  ^| ^| ^| ^| \___ \     \ \ / /   ^| ^|  ^| ^| ^| ^| ^|  _^|   ^| ^| ^| ^|%RESET%
-echo %RED%   \ V /   ^| ^|_^| ^|  ___) ^|     \ V /    ^| ^|  ^| ^|_^| ^| ^| ^|___  ^| ^|_^| ^|%RESET%
-echo %ORANGE%    \_/     \___/  ^|____/       \_/    ^|___^| ^|____/  ^|_____^|  \___/ %RESET%
-echo %ORANGE%  ____     ___   __        __  _   _   _        ___      _     ____  %RESET%
-echo %ORANGE% ^|  _ \   / _ \  \ \      / / ^| \ ^| ^| ^| ^|      / _ \    / \   ^|  _ \ %RESET%
-echo %ORANGE% ^| ^| ^| ^| ^| ^| ^| ^|  \ \ /\ / /  ^|  \^| ^| ^| ^|     ^| ^| ^| ^|  / _ \  ^| ^| ^| ^|%RESET%
-echo %YELLOW% ^| ^|_^| ^| ^| ^|_^| ^|   \ V  V /   ^| ^|\  ^| ^| ^|___  ^| ^|_^| ^| / ___ \ ^| ^|_^| ^|%RESET%
-echo %YELLOW% ^|____/   \___/     \_/\_/    ^|_^| \_^| ^|_____^|  \___/ /_/   \_\^|____/ %RESET%
+echo %FLAME1% __     __   ___    ____     __     __  ___   ____    _____    ___  %RESET%
+echo %FLAME1% \ \   / /  / _ \  / ___^|    \ \   / / ^|_ _^| ^|  _ \  ^| ____^|  / _ \ %RESET%
+echo %FLAME2%  \ \ / /  ^| ^| ^| ^| \___ \     \ \ / /   ^| ^|  ^| ^| ^| ^| ^|  _^|   ^| ^| ^| ^|%RESET%
+echo %FLAME2%   \ V /   ^| ^|_^| ^|  ___) ^|     \ V /    ^| ^|  ^| ^|_^| ^| ^| ^|___  ^| ^|_^| ^|%RESET%
+echo %FLAME3%    \_/     \___/  ^|____/       \_/    ^|___^| ^|____/  ^|_____^|  \___/ %RESET%
+echo %FLAME3%  ____     ___   __        __  _   _   _        ___      _     ____  %RESET%
+echo %FLAME3% ^|  _ \   / _ \  \ \      / / ^| \ ^| ^| ^| ^|      / _ \    / \   ^|  _ \ %RESET%
+echo %FLAME3% ^| ^| ^| ^| ^| ^| ^| ^|  \ \ /\ / /  ^|  \^| ^| ^| ^|     ^| ^| ^| ^|  / _ \  ^| ^| ^| ^|%RESET%
+echo %FLAME4% ^| ^|_^| ^| ^| ^|_^| ^|   \ V  V /   ^| ^|\  ^| ^| ^|___  ^| ^|_^| ^| / ___ \ ^| ^|_^| ^|%RESET%
+echo %FLAME4% ^|____/   \___/     \_/\_/    ^|_^| \_^| ^|_____^|  \___/ /_/   \_\^|____/ %RESET%
 echo.
 goto :eof
