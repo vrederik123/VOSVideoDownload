@@ -92,13 +92,21 @@ echo %RED%CHECKING FOR VOSVIDEODOWNLOAD UPDATES...%RESET%
 set "updateFile=%TEMP%\VOSVideoDownload-latest-%RANDOM%.bat"
 set "updateHelper=%TEMP%\VOSVideoDownload-update-%RANDOM%.bat"
 set "updateUrl=%UPDATE_URL%?cache=%RANDOM%%RANDOM%"
+set "VOS_UPDATE_FILE=%updateFile%"
+set "VOS_UPDATE_URL=%updateUrl%"
+echo %CYAN%DOWNLOADING UPDATE (30-SECOND TIMEOUT)...%RESET%
 where curl.exe >nul 2>&1
-if not errorlevel 1 (
-    curl.exe --location --fail --silent --show-error --max-time 30 "%updateUrl%" --output "%updateFile%"
-    if errorlevel 1 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%updateUrl%" "%updateFile%" >nul 2>&1
-) else (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%updateUrl%" "%updateFile%"
-)
+if errorlevel 1 goto update_download_powershell
+curl.exe --location --fail --silent --show-error --connect-timeout 10 --max-time 30 "%updateUrl%" --output "%updateFile%"
+if errorlevel 1 goto update_download_failed
+goto update_download_validate
+
+:update_download_powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $request=[System.Net.HttpWebRequest]::Create($env:VOS_UPDATE_URL); $request.Timeout=30000; $request.ReadWriteTimeout=30000; $response=$request.GetResponse(); try { $stream=$response.GetResponseStream(); $file=[System.IO.File]::Create($env:VOS_UPDATE_FILE); try { $stream.CopyTo($file) } finally { $file.Dispose(); $stream.Dispose() } } finally { $response.Dispose() }"
+if errorlevel 1 goto update_download_failed
+goto update_download_validate
+
+:update_download_validate
 if not exist "%updateFile%" (
     goto update_download_failed
 )
@@ -106,18 +114,14 @@ for %%A in ("%updateFile%") do if %%~zA LSS 100 goto update_download_failed
 goto update_download_continue
 
 :update_download_failed
-if not exist "%updateFile%" (
-    echo %RED%UNABLE TO DOWNLOAD THE UPDATE. CHECK THE UPDATE URL AND YOUR INTERNET CONNECTION.%RESET%
-) else (
-    del /f /q "%updateFile%" >nul 2>&1
-    echo %RED%THE UPDATE DOWNLOAD WAS EMPTY OR INCOMPLETE.%RESET%
-)
+if exist "%updateFile%" del /f /q "%updateFile%" >nul 2>&1
+echo %RED%UPDATE DOWNLOAD FAILED OR TIMED OUT. SEE THE ERROR ABOVE, THEN CHECK YOUR CONNECTION.%RESET%
 set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
 goto menu
 
 :update_download_continue
 set "remoteVersion="
-for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $env:VOS_UPDATE_FILE; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }"') do set "remoteVersion=%%A"
 if "%remoteVersion%"=="" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE DOWNLOADED UPDATE DOES NOT CONTAIN A VALID VERSION.%RESET%
@@ -125,7 +129,9 @@ if "%remoteVersion%"=="" (
     goto menu
 )
 set "currentVersion=%VERSION%"
-for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%currentVersion%") do set "updateStatus=%%A"
+set "VOS_REMOTE_VERSION=%remoteVersion%"
+set "VOS_CURRENT_VERSION=%currentVersion%"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$env:VOS_REMOTE_VERSION; [version]$old=[version]$env:VOS_CURRENT_VERSION; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }"') do set "updateStatus=%%A"
 if "%updateStatus%"=="INVALID" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE UPDATE VERSION IS INVALID.%RESET%
