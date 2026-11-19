@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.03.14"
+set "VERSION=1.03.16"
 set "VERSION_TYPE=RELEASE"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -150,6 +150,8 @@ set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
     echo @echo off
     echo copy /y "%updateFile%" "%~f0" ^>nul
     echo if errorlevel 1 goto cleanup
+    echo powershell -NoProfile -Command "$date=Get-Date -Format 'MM/dd/yyyy'; $time=Get-Date -Format 'hh:mm tt'; $entry='UPDATE: %currentVersion% '+[char]62+' %remoteVersion% AT '+$date+' AT '+$time; Add-Content -LiteralPath '%~dp0history.txt' -Value $entry -Encoding UTF8"
+    echo if errorlevel 1 echo WARNING: UPDATE INSTALLED, BUT THE UPDATE HISTORY COULD NOT BE WRITTEN.
     echo start "" /b "%~f0"
     echo :cleanup
     echo del /f /q "%updateFile%" ^>nul 2^>^&1
