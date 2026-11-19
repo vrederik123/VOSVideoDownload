@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.03.01"
+set "VERSION=1.03.10"
 set "VERSION_TYPE=RELEASE"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -105,6 +105,7 @@ set "VOS_UPDATE_FILE=%updateFile%"
 set "VOS_UPDATE_URL=%updateUrl%"
 set "VOS_UPDATE_HELPER=%updateHelper%"
 echo %CYAN%DOWNLOADING UPDATE...%RESET%
+powershell -NoProfile -Command "$barSize=20; for($i=0;$i -le 10;$i++){ $bar=('#' * $i)+('-' * ($barSize-$i)); $line=[string][char]13+('UPDATE [{0}] {1,3} percent' -f $bar,[int](100*$i/$barSize)); Write-Host $line -NoNewline -ForegroundColor Cyan; Start-Sleep -Milliseconds 50 }; Write-Host"
 where curl.exe >nul 2>&1
 if errorlevel 1 goto update_download_powershell
 curl.exe --location --fail --silent --show-error --connect-timeout 10 --max-time 30 "%updateUrl%" --output "%updateFile%"
@@ -150,6 +151,7 @@ set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
     echo ping 127.0.0.1 -n 3 ^>nul
     echo copy /y "%updateFile%" "%~f0" ^>nul
     echo if errorlevel 1 goto cleanup
+    echo powershell -NoProfile -Command "$barSize=20; for($i=11;$i -le $barSize;$i++){ $bar=('#' * $i)+('-' * ($barSize-$i)); $line=[string][char]13+('UPDATE [{0}] {1,3} percent' -f $bar,[int](100*$i/$barSize)); Write-Host $line -NoNewline -ForegroundColor Cyan; Start-Sleep -Milliseconds 50 }; Write-Host"
     echo start "" /b "%~f0"
     echo :cleanup
     echo del /f /q "%updateFile%" ^>nul 2^>^&1
