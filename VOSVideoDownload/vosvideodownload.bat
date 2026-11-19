@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.03.11"
+set "VERSION=1.03.13"
 set "VERSION_TYPE=RELEASE"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -144,12 +144,12 @@ if "%updateStatus%"=="CURRENT" (
     goto menu
 )
 echo %GREEN%UPDATE FOUND: %currentVersion% TO %remoteVersion%%RESET%
+powershell -NoProfile -Command "$barSize=20; $fill=[string][char]9608; for($i=0;$i -le $barSize;$i++){ $bar=($fill * $i)+(' ' * ($barSize-$i)); $line=[string][char]13+('{0} {1,5:0.0}' -f $bar,[double](100*$i/$barSize))+[char]37; Write-Host $line -NoNewline -ForegroundColor Green; if($i -lt $barSize){Start-Sleep -Milliseconds 25} }; Start-Sleep -Milliseconds 500; Write-Host; Write-Host 'UPDATE COMPLETE'"
 set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
 (
     echo @echo off
     echo copy /y "%updateFile%" "%~f0" ^>nul
     echo if errorlevel 1 goto cleanup
-    echo powershell -NoProfile -Command "$barSize=20; $fill=[string][char]9608; for($i=0;$i -le $barSize;$i++){ $bar=($fill * $i)+(' ' * ($barSize-$i)); $line=[string][char]13+('[update] [{0}] {1,5:0.0}%%' -f $bar,[double](100*$i/$barSize)); Write-Host $line -NoNewline -ForegroundColor Cyan; Start-Sleep -Milliseconds 25 }; Write-Host"
     echo start "" /b "%~f0"
     echo :cleanup
     echo del /f /q "%updateFile%" ^>nul 2^>^&1
