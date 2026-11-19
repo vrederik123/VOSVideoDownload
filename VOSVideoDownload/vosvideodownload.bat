@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.10"
+set "VERSION=1.02.40 | DEVELOPMENT"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
 :: MAXIMIZE ACTIVE TERMINAL WINDOW ON LAUNCH
 powershell -NoProfile -Command "$ws=Add-Type -MemberDefinition '[DllImport(\"user32.dll\")]public static extern IntPtr GetForegroundWindow();[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr h,int n);' -Name W -Namespace N -PassThru;$null=$ws::ShowWindow($ws::GetForegroundWindow(),3)" >nul 2>&1
