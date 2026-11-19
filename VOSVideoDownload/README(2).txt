@@ -136,3 +136,10 @@ printf '\nVOSVideoDownload %s (%s) installed successfully.\n' "$INSTALLED_VERSIO
 printf 'Run it with: sh "%s"\n' "$INSTALL_PATH"
 printf '%s\n' "The updater is configured to use:"
 printf '  %s\n' "$UPDATE_URL_BASE""
+
+! - DO NOT INCLUDE THE QUATATION MARKS (THESE > "")
+
+STEP 3:
+RUN "pbpaste > vosinstaller.sh"
+
+* MAKE SURE A-SHELL RUNS THIS ACTION IN "[~/Documents]$"
