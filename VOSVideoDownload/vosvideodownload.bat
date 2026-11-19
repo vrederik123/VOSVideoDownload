@@ -2,12 +2,12 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.90"
-set "VERSION_TYPE=DEVELOPMENT"
+set "VERSION=1.03.00"
+set "VERSION_TYPE=RELEASE"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
-:: MAXIMIZE ACTIVE TERMINAL WINDOW ON LAUNCH
-powershell -NoProfile -Command "$ws=Add-Type -MemberDefinition '[DllImport(\"user32.dll\")]public static extern IntPtr GetForegroundWindow();[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr h,int n);' -Name W -Namespace N -PassThru;$null=$ws::ShowWindow($ws::GetForegroundWindow(),3)" >nul 2>&1
+:: START IN THE BORDERLESS TERMINAL STYLE
+call :set_display_mode FULLSCREEN
 
 :init
 :: LOAD LOCAL DEPENDENCIES PATH, ANSI COLORS, AND SETTINGS.TXT
@@ -25,6 +25,10 @@ for /f "usebackq tokens=1,2 delims==" %%A in ("%~dp0settings.txt") do (
     if /i "%%A"=="METADATA" set "METADATA=%%B"
     if /i "%%A"=="FLAME" set "FLAME=%%B"
 )
+if /i "%FLAME%"=="YELLOW-WHITE" (
+    set "FLAME=STANDARD"
+    call :save_settings
+)
 call :set_flame
 
 :menu
@@ -37,12 +41,17 @@ echo %GREEN%4: VOSVIDEODOWNLOAD SETTINGS%RESET%
 echo %GREEN%5: QUIT%RESET%
 echo %GREEN%6: RESTART%RESET%
 set "c="&set /p "c="
+if "%c%"=="" goto toggle_display
 if "%c%"=="1" goto download_menu
 if "%c%"=="2" goto dependencies
 if "%c%"=="3" goto update
 if "%c%"=="4" goto settings
 if "%c%"=="5" exit
 if "%c%"=="6" goto init
+goto menu
+
+:toggle_display
+call :set_display_mode TOGGLE
 goto menu
 
 :download_menu
@@ -91,37 +100,14 @@ call :banner
 echo %RED%CHECKING FOR VOSVIDEODOWNLOAD UPDATES...%RESET%
 set "updateFile=%TEMP%\VOSVideoDownload-latest-%RANDOM%.bat"
 set "updateHelper=%TEMP%\VOSVideoDownload-update-%RANDOM%.bat"
-set "updateUrl=%UPDATE_URL%?cache=%RANDOM%%RANDOM%"
-set "VOS_UPDATE_FILE=%updateFile%"
-set "VOS_UPDATE_URL=%updateUrl%"
-echo %CYAN%DOWNLOADING UPDATE (30-SECOND TIMEOUT)...%RESET%
-where curl.exe >nul 2>&1
-if errorlevel 1 goto update_download_powershell
-curl.exe --location --fail --silent --show-error --connect-timeout 10 --max-time 30 "%updateUrl%" --output "%updateFile%"
-if errorlevel 1 goto update_download_failed
-goto update_download_validate
-
-:update_download_powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $request=[System.Net.HttpWebRequest]::Create($env:VOS_UPDATE_URL); $request.Timeout=30000; $request.ReadWriteTimeout=30000; $response=$request.GetResponse(); try { $stream=$response.GetResponseStream(); $file=[System.IO.File]::Create($env:VOS_UPDATE_FILE); try { $stream.CopyTo($file) } finally { $file.Dispose(); $stream.Dispose() } } finally { $response.Dispose() }"
-if errorlevel 1 goto update_download_failed
-goto update_download_validate
-
-:update_download_validate
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%UPDATE_URL%?cache=%RANDOM%%RANDOM%" "%updateFile%" >nul 2>&1
 if not exist "%updateFile%" (
-    goto update_download_failed
+    echo %RED%UNABLE TO DOWNLOAD THE UPDATE. CHECK THE UPDATE URL AND YOUR INTERNET CONNECTION.%RESET%
+    set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
+    goto menu
 )
-for %%A in ("%updateFile%") do if %%~zA LSS 100 goto update_download_failed
-goto update_download_continue
-
-:update_download_failed
-if exist "%updateFile%" del /f /q "%updateFile%" >nul 2>&1
-echo %RED%UPDATE DOWNLOAD FAILED OR TIMED OUT. SEE THE ERROR ABOVE, THEN CHECK YOUR CONNECTION.%RESET%
-set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
-goto menu
-
-:update_download_continue
 set "remoteVersion="
-for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $env:VOS_UPDATE_FILE; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }"') do set "remoteVersion=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
 if "%remoteVersion%"=="" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE DOWNLOADED UPDATE DOES NOT CONTAIN A VALID VERSION.%RESET%
@@ -129,9 +115,7 @@ if "%remoteVersion%"=="" (
     goto menu
 )
 set "currentVersion=%VERSION%"
-set "VOS_REMOTE_VERSION=%remoteVersion%"
-set "VOS_CURRENT_VERSION=%currentVersion%"
-for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$env:VOS_REMOTE_VERSION; [version]$old=[version]$env:VOS_CURRENT_VERSION; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }"') do set "updateStatus=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%currentVersion%") do set "updateStatus=%%A"
 if "%updateStatus%"=="INVALID" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE UPDATE VERSION IS INVALID.%RESET%
@@ -316,19 +300,43 @@ goto settings
 
 :flame_settings
 call :banner
+set "FLAME_STANDARD_LABEL="
+set "FLAME_PURPLE_LABEL="
+set "FLAME_GREEN_LABEL="
+set "FLAME_ICE_LABEL="
+set "FLAME_OCEAN_LABEL="
+set "FLAME_SUNSET_LABEL="
+set "FLAME_CYBERPUNK_LABEL="
+set "FLAME_RAINBOW_LABEL="
+if /i "%FLAME%"=="STANDARD" set "FLAME_STANDARD_LABEL=(ENABLED) "
+if /i "%FLAME%"=="PURPLE-PINK" set "FLAME_PURPLE_LABEL=(ENABLED) "
+if /i "%FLAME%"=="GREEN-WHITE" set "FLAME_GREEN_LABEL=(ENABLED) "
+if /i "%FLAME%"=="ICE-BLUE" set "FLAME_ICE_LABEL=(ENABLED) "
+if /i "%FLAME%"=="OCEAN-TEAL" set "FLAME_OCEAN_LABEL=(ENABLED) "
+if /i "%FLAME%"=="SUNSET" set "FLAME_SUNSET_LABEL=(ENABLED) "
+if /i "%FLAME%"=="CYBERPUNK" set "FLAME_CYBERPUNK_LABEL=(ENABLED) "
+if /i "%FLAME%"=="RAINBOW" set "FLAME_RAINBOW_LABEL=(ENABLED) "
 echo %GREEN%ASCII FLAME SETTINGS%RESET%
-echo %GREEN%1: (STANDARD) RED-YELLOW FLAME%RESET%
-echo %GREEN%2: PURPLE-PINK FLAME%RESET%
-echo %GREEN%3: GREEN-WHITE FLAME%RESET%
-echo %GREEN%4: YELLOW-WHITE FLAME%RESET%
+echo %GREEN%1: %FLAME_STANDARD_LABEL%RED-YELLOW FLAME%RESET%
+echo %GREEN%2: %FLAME_PURPLE_LABEL%PURPLE-PINK FLAME%RESET%
+echo %GREEN%3: %FLAME_GREEN_LABEL%GREEN-WHITE FLAME%RESET%
+echo %GREEN%4: %FLAME_ICE_LABEL%ICE-BLUE FLAME%RESET%
+echo %GREEN%5: %FLAME_OCEAN_LABEL%OCEAN-TEAL FLAME%RESET%
+echo %GREEN%6: %FLAME_SUNSET_LABEL%SUNSET FLAME%RESET%
+echo %GREEN%7: %FLAME_CYBERPUNK_LABEL%CYBERPUNK FLAME%RESET%
+echo %GREEN%8: %FLAME_RAINBOW_LABEL%RAINBOW FLAME%RESET%
 echo %CYAN%ENTER: BACK TO SETTINGS%RESET%
 set "fc="&set /p "fc="
 if "%fc%"=="" goto settings
 if "%fc%"=="1" set "FLAME=STANDARD"
 if "%fc%"=="2" set "FLAME=PURPLE-PINK"
 if "%fc%"=="3" set "FLAME=GREEN-WHITE"
-if "%fc%"=="4" set "FLAME=YELLOW-WHITE"
-if not "%fc%"=="1" if not "%fc%"=="2" if not "%fc%"=="3" if not "%fc%"=="4" goto flame_settings
+if "%fc%"=="4" set "FLAME=ICE-BLUE"
+if "%fc%"=="5" set "FLAME=OCEAN-TEAL"
+if "%fc%"=="6" set "FLAME=SUNSET"
+if "%fc%"=="7" set "FLAME=CYBERPUNK"
+if "%fc%"=="8" set "FLAME=RAINBOW"
+if not "%fc%"=="1" if not "%fc%"=="2" if not "%fc%"=="3" if not "%fc%"=="4" if not "%fc%"=="5" if not "%fc%"=="6" if not "%fc%"=="7" if not "%fc%"=="8" goto flame_settings
 call :set_flame
 call :save_settings
 goto settings
@@ -341,48 +349,133 @@ exit /b
 :set_flame
 if /i "%FLAME%"=="PURPLE-PINK" (
     set "FLAME_DISPLAY=PURPLE-PINK FLAME"
-    set "FLAME1=%PURPLE%"
-    set "FLAME2=%PINK%"
-    set "FLAME3=%PINK%"
-    set "FLAME4=%PINK%"
+    set "FLAME1=%ESC%[38;2;80;0;150m"
+    set "FLAME2=%ESC%[38;2;105;0;185m"
+    set "FLAME3=%ESC%[38;2;130;0;215m"
+    set "FLAME4=%ESC%[38;2;155;0;235m"
+    set "FLAME5=%ESC%[38;2;180;0;245m"
+    set "FLAME6=%ESC%[38;2;205;10;240m"
+    set "FLAME7=%ESC%[38;2;225;30;230m"
+    set "FLAME8=%ESC%[38;2;240;65;225m"
+    set "FLAME9=%ESC%[38;2;250;115;232m"
+    set "FLAME10=%ESC%[38;2;255;185;245m"
     exit /b
 )
 if /i "%FLAME%"=="GREEN-WHITE" (
     set "FLAME_DISPLAY=GREEN-WHITE FLAME"
-    set "FLAME1=%ESC%[32m"
-    set "FLAME2=%GREEN%"
-    set "FLAME3=%WHITE%"
-    set "FLAME4=%WHITE%"
+    set "FLAME1=%ESC%[38;2;0;65;20m"
+    set "FLAME2=%ESC%[38;2;0;95;30m"
+    set "FLAME3=%ESC%[38;2;0;125;40m"
+    set "FLAME4=%ESC%[38;2;0;155;50m"
+    set "FLAME5=%ESC%[38;2;0;180;65m"
+    set "FLAME6=%ESC%[38;2;25;205;90m"
+    set "FLAME7=%ESC%[38;2;65;225;125m"
+    set "FLAME8=%ESC%[38;2;110;240;165m"
+    set "FLAME9=%ESC%[38;2;175;250;210m"
+    set "FLAME10=%ESC%[38;2;245;255;250m"
     exit /b
 )
-if /i "%FLAME%"=="YELLOW-WHITE" (
-    set "FLAME_DISPLAY=YELLOW-WHITE FLAME"
-    set "FLAME1=%ESC%[33m"
-    set "FLAME2=%YELLOW%"
-    set "FLAME3=%WHITE%"
-    set "FLAME4=%WHITE%"
+if /i "%FLAME%"=="ICE-BLUE" (
+    set "FLAME_DISPLAY=ICE-BLUE FLAME"
+    set "FLAME1=%ESC%[38;2;18;18;95m"
+    set "FLAME2=%ESC%[38;2;25;35;135m"
+    set "FLAME3=%ESC%[38;2;25;55;175m"
+    set "FLAME4=%ESC%[38;2;30;80;215m"
+    set "FLAME5=%ESC%[38;2;35;110;245m"
+    set "FLAME6=%ESC%[38;2;40;145;255m"
+    set "FLAME7=%ESC%[38;2;65;175;255m"
+    set "FLAME8=%ESC%[38;2;105;205;255m"
+    set "FLAME9=%ESC%[38;2;155;230;255m"
+    set "FLAME10=%ESC%[38;2;220;250;255m"
+    exit /b
+)
+if /i "%FLAME%"=="OCEAN-TEAL" (
+    set "FLAME_DISPLAY=OCEAN-TEAL FLAME"
+    set "FLAME1=%ESC%[38;2;0;25;55m"
+    set "FLAME2=%ESC%[38;2;0;45;90m"
+    set "FLAME3=%ESC%[38;2;0;70;120m"
+    set "FLAME4=%ESC%[38;2;0;100;145m"
+    set "FLAME5=%ESC%[38;2;0;130;155m"
+    set "FLAME6=%ESC%[38;2;0;160;155m"
+    set "FLAME7=%ESC%[38;2;25;190;155m"
+    set "FLAME8=%ESC%[38;2;80;215;175m"
+    set "FLAME9=%ESC%[38;2;145;235;205m"
+    set "FLAME10=%ESC%[38;2;210;255;235m"
+    exit /b
+)
+if /i "%FLAME%"=="SUNSET" (
+    set "FLAME_DISPLAY=SUNSET FLAME"
+    set "FLAME1=%ESC%[38;2;38;0;85m"
+    set "FLAME2=%ESC%[38;2;70;0;130m"
+    set "FLAME3=%ESC%[38;2;105;0;160m"
+    set "FLAME4=%ESC%[38;2;145;10;175m"
+    set "FLAME5=%ESC%[38;2;185;20;160m"
+    set "FLAME6=%ESC%[38;2;220;35;130m"
+    set "FLAME7=%ESC%[38;2;245;65;95m"
+    set "FLAME8=%ESC%[38;2;255;100;65m"
+    set "FLAME9=%ESC%[38;2;255;150;55m"
+    set "FLAME10=%ESC%[38;2;255;210;100m"
+    exit /b
+)
+if /i "%FLAME%"=="CYBERPUNK" (
+    set "FLAME_DISPLAY=CYBERPUNK FLAME"
+    set "FLAME1=%ESC%[38;2;20;10;75m"
+    set "FLAME2=%ESC%[38;2;45;20;150m"
+    set "FLAME3=%ESC%[38;2;80;25;220m"
+    set "FLAME4=%ESC%[38;2;130;35;255m"
+    set "FLAME5=%ESC%[38;2;190;40;255m"
+    set "FLAME6=%ESC%[38;2;245;35;220m"
+    set "FLAME7=%ESC%[38;2;255;35;160m"
+    set "FLAME8=%ESC%[38;2;255;65;125m"
+    set "FLAME9=%ESC%[38;2;170;130;255m"
+    set "FLAME10=%ESC%[38;2;85;235;255m"
+    exit /b
+)
+if /i "%FLAME%"=="RAINBOW" (
+    set "FLAME_DISPLAY=RAINBOW FLAME"
+    set "FLAME1=%ESC%[38;2;255;25;45m"
+    set "FLAME2=%ESC%[38;2;255;75;0m"
+    set "FLAME3=%ESC%[38;2;255;155;0m"
+    set "FLAME4=%ESC%[38;2;255;225;0m"
+    set "FLAME5=%ESC%[38;2;135;255;0m"
+    set "FLAME6=%ESC%[38;2;0;235;100m"
+    set "FLAME7=%ESC%[38;2;0;220;220m"
+    set "FLAME8=%ESC%[38;2;0;125;255m"
+    set "FLAME9=%ESC%[38;2;100;45;255m"
+    set "FLAME10=%ESC%[38;2;255;60;200m"
     exit /b
 )
 set "FLAME=STANDARD"
 set "FLAME_DISPLAY=RED-YELLOW FLAME"
-set "FLAME1=%DARKRED%"
-set "FLAME2=%RED%"
-set "FLAME3=%ORANGE%"
-set "FLAME4=%YELLOW%"
+set "FLAME1=%ESC%[38;2;120;0;0m"
+set "FLAME2=%ESC%[38;2;155;0;0m"
+set "FLAME3=%ESC%[38;2;190;5;0m"
+set "FLAME4=%ESC%[38;2;225;20;0m"
+set "FLAME5=%ESC%[38;2;250;45;0m"
+set "FLAME6=%ESC%[38;2;255;80;0m"
+set "FLAME7=%ESC%[38;2;255;120;0m"
+set "FLAME8=%ESC%[38;2;255;165;0m"
+set "FLAME9=%ESC%[38;2;255;205;0m"
+set "FLAME10=%ESC%[38;2;255;240;75m"
+exit /b
+
+:set_display_mode
+set "VOS_DISPLAY_TARGET=%~1"
+powershell -NoProfile -Command "$ws=Add-Type -MemberDefinition '[DllImport(\"kernel32.dll\")]public static extern IntPtr GetConsoleWindow();[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr h,int n);[DllImport(\"user32.dll\")]public static extern bool IsWindowVisible(IntPtr h);[DllImport(\"user32.dll\")]public static extern bool SetForegroundWindow(IntPtr h);[DllImport(\"user32.dll\")]public static extern IntPtr GetForegroundWindow();[DllImport(\"user32.dll\")]public static extern int GetWindowLong(IntPtr h,int n);[DllImport(\"user32.dll\")]public static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);' -Name W -Namespace N -PassThru;for($i=0;$i -lt 10;$i++){ $p=Get-Process -Name WindowsTerminal -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '*VOSVIDEODOWNLOAD*' } | Select-Object -First 1; if($p -and $p.MainWindowHandle -ne [IntPtr]::Zero){$h=$p.MainWindowHandle;$terminal=$true}else{$h=$ws::GetConsoleWindow();$terminal=$false}; if($h -ne [IntPtr]::Zero -and ($terminal -or $ws::IsWindowVisible($h))){$style=$ws::GetWindowLong($h,-16);$fullscreen=(($style -band 0x00C00000) -eq 0);$toggle=($env:VOS_DISPLAY_TARGET -eq 'TOGGLE') -or ($env:VOS_DISPLAY_TARGET -eq 'FULLSCREEN' -and -not $fullscreen) -or ($env:VOS_DISPLAY_TARGET -eq 'WINDOWED' -and $fullscreen);if($toggle){if($env:VOS_DISPLAY_TARGET -eq 'FULLSCREEN'){$null=$ws::ShowWindow($h,3)};$null=$ws::SetForegroundWindow($h);Start-Sleep -Milliseconds 150;if($ws::GetForegroundWindow() -eq $h){if($terminal){$ws::keybd_event(0x7A,0,0,[UIntPtr]::Zero);$ws::keybd_event(0x7A,0,2,[UIntPtr]::Zero)}else{$ws::keybd_event(0x12,0,0,[UIntPtr]::Zero);$ws::keybd_event(0x0D,0,0,[UIntPtr]::Zero);$ws::keybd_event(0x0D,0,2,[UIntPtr]::Zero);$ws::keybd_event(0x12,0,2,[UIntPtr]::Zero)}}};break};Start-Sleep -Milliseconds 150}" >nul 2>&1
 exit /b
 
 :banner
 cls
 :: ESCAPE PIPE CHARACTERS (^|) IN ASCII ART TO PREVENT BATCH SYNTAX ERRORS
 echo %FLAME1% __     __   ___    ____     __     __  ___   ____    _____    ___  %RESET%
-echo %FLAME1% \ \   / /  / _ \  / ___^|    \ \   / / ^|_ _^| ^|  _ \  ^| ____^|  / _ \ %RESET%
-echo %FLAME2%  \ \ / /  ^| ^| ^| ^| \___ \     \ \ / /   ^| ^|  ^| ^| ^| ^| ^|  _^|   ^| ^| ^| ^|%RESET%
-echo %FLAME2%   \ V /   ^| ^|_^| ^|  ___) ^|     \ V /    ^| ^|  ^| ^|_^| ^| ^| ^|___  ^| ^|_^| ^|%RESET%
-echo %FLAME3%    \_/     \___/  ^|____/       \_/    ^|___^| ^|____/  ^|_____^|  \___/ %RESET%
-echo %FLAME3%  ____     ___   __        __  _   _   _        ___      _     ____  %RESET%
-echo %FLAME3% ^|  _ \   / _ \  \ \      / / ^| \ ^| ^| ^| ^|      / _ \    / \   ^|  _ \ %RESET%
-echo %FLAME3% ^| ^| ^| ^| ^| ^| ^| ^|  \ \ /\ / /  ^|  \^| ^| ^| ^|     ^| ^| ^| ^|  / _ \  ^| ^| ^| ^|%RESET%
-echo %FLAME4% ^| ^|_^| ^| ^| ^|_^| ^|   \ V  V /   ^| ^|\  ^| ^| ^|___  ^| ^|_^| ^| / ___ \ ^| ^|_^| ^|%RESET%
-echo %FLAME4% ^|____/   \___/     \_/\_/    ^|_^| \_^| ^|_____^|  \___/ /_/   \_\^|____/ %RESET%
+echo %FLAME2% \ \   / /  / _ \  / ___^|    \ \   / / ^|_ _^| ^|  _ \  ^| ____^|  / _ \ %RESET%
+echo %FLAME3%  \ \ / /  ^| ^| ^| ^| \___ \     \ \ / /   ^| ^|  ^| ^| ^| ^| ^|  _^|   ^| ^| ^| ^|%RESET%
+echo %FLAME4%   \ V /   ^| ^|_^| ^|  ___) ^|     \ V /    ^| ^|  ^| ^|_^| ^| ^| ^|___  ^| ^|_^| ^|%RESET%
+echo %FLAME5%    \_/     \___/  ^|____/       \_/    ^|___^| ^|____/  ^|_____^|  \___/ %RESET%
+echo %FLAME6%  ____     ___   __        __  _   _   _        ___      _     ____  %RESET%
+echo %FLAME7% ^|  _ \   / _ \  \ \      / / ^| \ ^| ^| ^| ^|      / _ \    / \   ^|  _ \ %RESET%
+echo %FLAME8% ^| ^| ^| ^| ^| ^| ^| ^|  \ \ /\ / /  ^|  \^| ^| ^| ^|     ^| ^| ^| ^|  / _ \  ^| ^| ^| ^|%RESET%
+echo %FLAME9% ^| ^|_^| ^| ^| ^|_^| ^|   \ V  V /   ^| ^|\  ^| ^| ^|___  ^| ^|_^| ^| / ___ \ ^| ^|_^| ^|%RESET%
+echo %FLAME10% ^|____/   \___/     \_/\_/    ^|_^| \_^| ^|_____^|  \___/ /_/   \_\^|____/ %RESET%
 echo.
 goto :eof
