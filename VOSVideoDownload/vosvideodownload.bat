@@ -2,7 +2,8 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.40 | DEVELOPMENT"
+set "VERSION=1.02.50"
+set "VERSION_TYPE=DEVELOPMENT"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
 :: MAXIMIZE ACTIVE TERMINAL WINDOW ON LAUNCH
 powershell -NoProfile -Command "$ws=Add-Type -MemberDefinition '[DllImport(\"user32.dll\")]public static extern IntPtr GetForegroundWindow();[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr h,int n);' -Name W -Namespace N -PassThru;$null=$ws::ShowWindow($ws::GetForegroundWindow(),3)" >nul 2>&1
@@ -77,14 +78,16 @@ if not exist "%updateFile%" (
     goto menu
 )
 set "remoteVersion="
-for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'set ""VERSION=([^""]+)""') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
 if "%remoteVersion%"=="" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE DOWNLOADED UPDATE DOES NOT CONTAIN A VALID VERSION.%RESET%
     set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
     goto menu
 )
-for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%VERSION%"') do set "updateStatus=%%A"
+set "currentVersion="
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=$args[0]; if ($content -match '^[0-9]+(?:\.[0-9]+)*') { $matches[0] }" "%VERSION%"') do set "currentVersion=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%currentVersion%"') do set "updateStatus=%%A"
 if "%updateStatus%"=="INVALID" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE UPDATE VERSION IS INVALID.%RESET%
@@ -93,11 +96,11 @@ if "%updateStatus%"=="INVALID" (
 )
 if "%updateStatus%"=="CURRENT" (
     del /f /q "%updateFile%" >nul 2>&1
-    echo %GREEN%VOSVIDEODOWNLOAD %VERSION% IS ALREADY UP TO DATE.%RESET%
+    echo %GREEN%VOSVIDEODOWNLOAD %currentVersion% IS ALREADY UP TO DATE.%RESET%
     set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
     goto menu
 )
-echo %GREEN%UPDATE FOUND: %VERSION% TO %remoteVersion%%RESET%
+echo %GREEN%UPDATE FOUND: %currentVersion% TO %remoteVersion%%RESET%
 echo %YELLOW%THE PROGRAM WILL RESTART AFTER UPDATING.%RESET%
 (
     echo @echo off
@@ -190,7 +193,7 @@ for %%D in (yt-dlp ffmpeg ffprobe ffplay) do if exist "%~dp0DEPENDENCIES\%%D.exe
 set "vc=0"
 if exist "%~dp0VIDEOS\*" for /f %%A in ('dir /b /s /a-d "%~dp0VIDEOS\*.mp4" "%~dp0VIDEOS\*.mp3" 2^>nul ^| find /c /v ""') do set "vc=%%A"
 echo %RED%VOSVIDEODOWNLOAD SETTINGS%RESET%
-echo %GREEN%VERSION: %YELLOW%%VERSION% ^| DEVELOPMENT%RESET%
+echo %GREEN%VERSION: %YELLOW%%VERSION% ^| %VERSION_TYPE%%RESET%
 echo %GREEN%INTENDED OPERATING SYSTEM: %YELLOW%WINDOWS11/PC%RESET%
 echo %GREEN%DEPENDENCIES:%RESET%
 echo %GREEN% - YT-DLP: %st_yt-dlp%%RESET%
