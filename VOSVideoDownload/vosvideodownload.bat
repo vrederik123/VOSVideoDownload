@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.03.16"
+set "VERSION=1.03.17"
 set "VERSION_TYPE=RELEASE"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -126,6 +126,10 @@ if "%remoteVersion%"=="" (
     set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
     goto menu
 )
+set "remoteVersionType="
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $env:VOS_UPDATE_FILE; if ($content -match 'VERSION_TYPE=([A-Za-z0-9_-]+)') { $matches[1] }"') do set "remoteVersionType=%%A"
+if "%remoteVersionType%"=="" echo %YELLOW%WARNING: UPDATE VERSION TYPE MISSING; HISTORY WILL RECORD UNKNOWN.%RESET%
+if "%remoteVersionType%"=="" set "remoteVersionType=UNKNOWN"
 set "currentVersion=%VERSION%"
 set "VOS_REMOTE_VERSION=%remoteVersion%"
 set "VOS_CURRENT_VERSION=%currentVersion%"
@@ -150,7 +154,7 @@ set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
     echo @echo off
     echo copy /y "%updateFile%" "%~f0" ^>nul
     echo if errorlevel 1 goto cleanup
-    echo powershell -NoProfile -Command "$date=Get-Date -Format 'MM/dd/yyyy'; $time=Get-Date -Format 'hh:mm tt'; $entry='UPDATE: %currentVersion% '+[char]62+' %remoteVersion% AT '+$date+' AT '+$time; Add-Content -LiteralPath '%~dp0history.txt' -Value $entry -Encoding UTF8"
+    echo powershell -NoProfile -Command "$date=Get-Date -Format 'MM/dd/yyyy'; $time=Get-Date -Format 'hh:mm tt'; $entry='UPDATE: %currentVersion% (%VERSION_TYPE%) '+[char]62+' %remoteVersion% (%remoteVersionType%) AT '+$date+' AT '+$time; Add-Content -LiteralPath '%~dp0history.txt' -Value $entry -Encoding UTF8"
     echo if errorlevel 1 echo WARNING: UPDATE INSTALLED, BUT THE UPDATE HISTORY COULD NOT BE WRITTEN.
     echo start "" /b "%~f0"
     echo :cleanup
