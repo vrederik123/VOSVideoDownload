@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.03.00"
+set "VERSION=1.03.01"
 set "VERSION_TYPE=RELEASE"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -100,14 +100,26 @@ call :banner
 echo %RED%CHECKING FOR VOSVIDEODOWNLOAD UPDATES...%RESET%
 set "updateFile=%TEMP%\VOSVideoDownload-latest-%RANDOM%.bat"
 set "updateHelper=%TEMP%\VOSVideoDownload-update-%RANDOM%.bat"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%UPDATE_URL%?cache=%RANDOM%%RANDOM%" "%updateFile%" >nul 2>&1
-if not exist "%updateFile%" (
-    echo %RED%UNABLE TO DOWNLOAD THE UPDATE. CHECK THE UPDATE URL AND YOUR INTERNET CONNECTION.%RESET%
-    set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
-    goto menu
-)
+set "updateUrl=%UPDATE_URL%?cache=%RANDOM%%RANDOM%"
+set "VOS_UPDATE_FILE=%updateFile%"
+set "VOS_UPDATE_URL=%updateUrl%"
+set "VOS_UPDATE_HELPER=%updateHelper%"
+echo %CYAN%DOWNLOADING UPDATE...%RESET%
+where curl.exe >nul 2>&1
+if errorlevel 1 goto update_download_powershell
+curl.exe --location --fail --silent --show-error --connect-timeout 10 --max-time 30 "%updateUrl%" --output "%updateFile%"
+if errorlevel 1 goto update_download_failed
+goto update_download_validate
+
+:update_download_powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $request=[System.Net.HttpWebRequest]::Create($env:VOS_UPDATE_URL); $request.Timeout=30000; $request.ReadWriteTimeout=30000; $response=$request.GetResponse(); try { $stream=$response.GetResponseStream(); $file=[System.IO.File]::Create($env:VOS_UPDATE_FILE); try { $stream.CopyTo($file) } finally { $file.Dispose(); $stream.Dispose() } } finally { $response.Dispose() }"
+if errorlevel 1 goto update_download_failed
+
+:update_download_validate
+if not exist "%updateFile%" goto update_download_failed
+for %%A in ("%updateFile%") do if %%~zA LSS 100 goto update_download_failed
 set "remoteVersion="
-for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $env:VOS_UPDATE_FILE; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }"') do set "remoteVersion=%%A"
 if "%remoteVersion%"=="" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE DOWNLOADED UPDATE DOES NOT CONTAIN A VALID VERSION.%RESET%
@@ -115,7 +127,10 @@ if "%remoteVersion%"=="" (
     goto menu
 )
 set "currentVersion=%VERSION%"
-for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%currentVersion%") do set "updateStatus=%%A"
+set "VOS_REMOTE_VERSION=%remoteVersion%"
+set "VOS_CURRENT_VERSION=%currentVersion%"
+set "updateStatus="
+for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$env:VOS_REMOTE_VERSION; [version]$old=[version]$env:VOS_CURRENT_VERSION; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }"') do set "updateStatus=%%A"
 if "%updateStatus%"=="INVALID" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE UPDATE VERSION IS INVALID.%RESET%
@@ -138,10 +153,16 @@ set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
     echo start "" /b "%~f0"
     echo :cleanup
     echo del /f /q "%updateFile%" ^>nul 2^>^&1
-    echo del /f /q "%updateHelper%" ^>nul 2^>^&1
+    echo start "" /b powershell -NoProfile -Command "Start-Sleep -Seconds 2; Remove-Item -LiteralPath $env:VOS_UPDATE_HELPER -Force -ErrorAction SilentlyContinue"
 ) > "%updateHelper%"
 start "" /b cmd /d /c ""%updateHelper%""
 exit
+
+:update_download_failed
+if exist "%updateFile%" del /f /q "%updateFile%" >nul 2>&1
+echo %RED%UPDATE DOWNLOAD FAILED OR TIMED OUT. CHECK THE ERROR ABOVE AND YOUR CONNECTION.%RESET%
+set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
+goto menu
 
 :dependencies
 call :banner
