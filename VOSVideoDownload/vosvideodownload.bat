@@ -2,8 +2,9 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.50"
+set "VERSION=1.02.51"
 set "VERSION_TYPE=DEVELOPMENT"
+set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
 :: MAXIMIZE ACTIVE TERMINAL WINDOW ON LAUNCH
 powershell -NoProfile -Command "$ws=Add-Type -MemberDefinition '[DllImport(\"user32.dll\")]public static extern IntPtr GetForegroundWindow();[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr h,int n);' -Name W -Namespace N -PassThru;$null=$ws::ShowWindow($ws::GetForegroundWindow(),3)" >nul 2>&1
@@ -46,7 +47,7 @@ echo %GREEN%5: DOWNLOAD ALL SHORTS ON CHANNEL%RESET%
 echo %CYAN%ENTER: BACK TO MAIN MENU%RESET%
 set "m="&set /p "m="
 if "%m%"=="" goto menu
-set "P="&set "S="
+set "P="&set "S="&set "A="
 if "%m%"=="1" (set "P=PASTE VIDEO URL"&set "A=-f "bv*[vcodec^=avc1]+ba[ext=m4a]/b[ext=mp4]" --merge-output-format mp4")
 if "%m%"=="2" (set "P=PASTE URL FOR AUDIO"&set "A=-x --audio-format mp3 --audio-quality 0")
 if "%m%"=="3" (set "P=PASTE URL FOR VIDEO ONLY"&set "A=-f "bv*[vcodec^=avc1]/bv*[ext=mp4]" --merge-output-format mp4")
@@ -56,13 +57,23 @@ if "%P%"=="" goto download_menu
 call :banner
 set "url="&set /p "url=%RED%%P% %CYAN%(OR PRESS ENTER TO GO BACK)%RED%: %RESET%"
 if "%url%"=="" goto download_menu
-:: SAVE TO TITLE SUBFOLDER WITH DESCRIPTION + JPG THUMBNAIL WHEN METADATA IS ENABLED
-if /i "%METADATA%"=="ENABLED" (
-    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%%(title)s/%%(title)s.%%(ext)s" %A% --write-description --write-thumbnail --convert-thumbnails jpg "%url%"
-) else (
-    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%%(title)s.%%(ext)s" %A% "%url%"
+if not exist "%~dp0DEPENDENCIES\yt-dlp.exe" (
+    echo %RED%YT-DLP IS MISSING. INSTALL DEPENDENCIES FIRST.%RESET%
+    set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
+    goto download_menu
 )
+if /i "%METADATA%"=="ENABLED" (
+    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%% (title)s/%%(title)s.%%(ext)s" %A% --write-description --write-thumbnail --convert-thumbnails jpg "%url%"
+) else (
+    "%~dp0DEPENDENCIES\yt-dlp.exe" --ffmpeg-location "%~dp0DEPENDENCIES" -P "%~dp0VIDEOS" -o "%S%%% (title)s.%%(ext)s" %A% "%url%"
+)
+if errorlevel 1 goto download_failed
 echo.&echo %GREEN%DONE! SAVED TO THE VIDEOS FOLDER.%RESET%
+set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
+goto download_menu
+
+:download_failed
+echo.&echo %RED%DOWNLOAD FAILED. YT-DLP RETURNED ERROR CODE %ERRORLEVEL%. CHECK THE URL, NETWORK, AND DEPENDENCIES.%RESET%
 set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
 goto download_menu
 
@@ -85,8 +96,7 @@ if "%remoteVersion%"=="" (
     set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
     goto menu
 )
-set "currentVersion="
-for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=$args[0]; if ($content -match '^[0-9]+(?:\.[0-9]+)*') { $matches[0] }" "%VERSION%"') do set "currentVersion=%%A"
+set "currentVersion=%VERSION%"
 for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%currentVersion%"') do set "updateStatus=%%A"
 if "%updateStatus%"=="INVALID" (
     del /f /q "%updateFile%" >nul 2>&1
@@ -107,8 +117,10 @@ set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
     echo @echo off
     echo timeout /t 2 /nobreak ^>nul
     echo copy /y "%updateFile%" "%~f0" ^>nul
-    echo del /f /q "%updateFile%" ^>nul 2^>^&1
+    echo if errorlevel 1 goto cleanup
     echo start "" "%~f0"
+    echo :cleanup
+    echo del /f /q "%updateFile%" ^>nul 2^>^&1
     echo del /f /q "%%~f0" ^>nul 2^>^&1
 ) > "%updateHelper%"
 start "" /b cmd /c "%updateHelper%"
@@ -133,58 +145,112 @@ goto dependencies
 :dep_check
 call :banner
 set "miss=0"
-for %%D in (yt-dlp ffmpeg ffprobe ffplay) do if exist "%~dp0DEPENDENCIES\%%D.exe" (echo %GREEN%[OK] %%D IS INSTALLED.%RESET%) else (echo %RED%[MISSING] %%D IS NOT INSTALLED.%RESET%&set "miss=1")
+for %%D in (yt-dlp ffmpeg ffprobe ffplay) do call :check_one "%%D"
 echo.
 if "%miss%"=="1" (
-    echo %RED%WOULD YOU LIKE TO INSTALL THE REQUIRED DEPENDENCIES?%RESET%
+    echo %RED%ONE OR MORE DEPENDENCIES ARE MISSING OR NOT WORKING.%RESET%
+    echo %RED%WOULD YOU LIKE TO INSTALL/REPAIR THE DEPENDENCIES?%RESET%
     echo %GREEN%[Y] YES ^| [N] NO%RESET%
     set "yn="&set /p "yn="
     if /i "%yn%"=="Y" goto dep_dl
     goto dependencies
 )
-echo %GREEN%ALL DEPENDENCIES ARE WORKING PROPERLY!%RESET%
+echo %GREEN%ALL DEPENDENCIES ARE PRESENT AND RESPONDING.%RESET%
 set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
 goto dependencies
+
+:check_one
+if not exist "%~dp0DEPENDENCIES\%~1.exe" (
+    echo %RED%[MISSING] %~1 IS NOT INSTALLED.%RESET%
+    set "miss=1"
+    exit /b 0
+)
+"%~dp0DEPENDENCIES\%~1.exe" --version >nul 2>&1
+if errorlevel 1 (
+    echo %RED%[ERROR] %~1 EXISTS BUT FAILED TO RUN.%RESET%
+    set "miss=1"
+) else echo %GREEN%[OK] %~1 IS INSTALLED AND RUNNING.%RESET%
+exit /b 0
 
 :dep_dl
 call :banner
 if not exist "%~dp0DEPENDENCIES" mkdir "%~dp0DEPENDENCIES"
+if not exist "%~dp0DEPENDENCIES" (
+    echo %RED%COULD NOT CREATE THE DEPENDENCIES FOLDER.%RESET%
+    set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
+    goto dependencies
+)
 echo %RED%INSTALLING YT-DLP, FFMPEG, FFPROBE, AND FFPLAY...%RESET%
-:: INSTALL LOCALLY AND FLATTEN FFMPEG BINARIES INTO DEPENDENCIES ROOT
-for %%P in (yt-dlp.yt-dlp Gyan.FFmpeg) do winget install --id %%P -e --location "%~dp0DEPENDENCIES" --accept-source-agreements --accept-package-agreements
-for /r "%~dp0DEPENDENCIES" %%F in (ffmpeg.exe ffprobe.exe ffplay.exe) do move /y "%%F" "%~dp0DEPENDENCIES\" >nul 2>&1
-echo.&echo %GREEN%INSTALLATION COMPLETE! INSTALLED TO: %~dp0DEPENDENCIES%RESET%&echo.
-set /p "e=%CYAN%ENTER TO RESTART & CONTINUE%RESET%"
+set "depFailed=0"
+for %%P in (yt-dlp.yt-dlp Gyan.FFmpeg) do call :install_package "%%P"
+for /r "%~dp0DEPENDENCIES" %%F in (ffmpeg.exe ffprobe.exe ffplay.exe) do if /i not "%%~dpF"=="%~dp0DEPENDENCIES\" move /y "%%F" "%~dp0DEPENDENCIES\" >nul 2>&1
+if "%depFailed%"=="1" (
+    echo %RED%ONE OR MORE PACKAGES FAILED TO INSTALL. REVIEW THE OUTPUT ABOVE.%RESET%
+) else (
+    echo %GREEN%INSTALLATION COMMANDS COMPLETED. VERIFY THE FILES WITH OPTION 1.%RESET%
+)
+echo %GREEN%INSTALL LOCATION: %~dp0DEPENDENCIES%RESET%
+set /p "e=%CYAN%PRESS ENTER TO RESTART%RESET%"
 start "" "%~f0"
-timeout /t 1 /nobreak >nul
 exit
+
+:install_package
+winget install --id %~1 -e --location "%~dp0DEPENDENCIES" --accept-source-agreements --accept-package-agreements
+if errorlevel 1 set "depFailed=1"
+exit /b 0
 
 :dep_up
 call :banner
 echo %RED%UPDATING YT-DLP, FFMPEG, FFPROBE, AND FFPLAY...%RESET%
-for %%P in (yt-dlp.yt-dlp Gyan.FFmpeg) do winget upgrade --id %%P -e --location "%~dp0DEPENDENCIES" --accept-source-agreements --accept-package-agreements
-for /r "%~dp0DEPENDENCIES" %%F in (ffmpeg.exe ffprobe.exe ffplay.exe) do move /y "%%F" "%~dp0DEPENDENCIES\" >nul 2>&1
-echo.&echo %GREEN%UPDATE CHECK COMPLETE!%RESET%
+set "depFailed=0"
+for %%P in (yt-dlp.yt-dlp Gyan.FFmpeg) do call :upgrade_package "%%P"
+for /r "%~dp0DEPENDENCIES" %%F in (ffmpeg.exe ffprobe.exe ffplay.exe) do if /i not "%%~dpF"=="%~dp0DEPENDENCIES\" move /y "%%F" "%~dp0DEPENDENCIES\" >nul 2>&1
+if "%depFailed%"=="1" (
+    echo %RED%ONE OR MORE DEPENDENCY UPDATES FAILED.%RESET%
+) else (
+    echo %GREEN%UPDATE COMMANDS COMPLETED. VERIFY THE FILES WITH OPTION 1.%RESET%
+)
 set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
 goto dependencies
 
+:upgrade_package
+winget upgrade --id %~1 -e --location "%~dp0DEPENDENCIES" --accept-source-agreements --accept-package-agreements
+if errorlevel 1 set "depFailed=1"
+exit /b 0
+
 :dep_del
 call :banner
-echo %RED%WHICH WOULD YOU LIKE TO UNINSTALL?%RESET%
+echo %RED%WHICH LOCAL DEPENDENCY FILES WOULD YOU LIKE TO REMOVE?%RESET%
 echo %GREEN%1: YT-DLP%RESET%
 echo %GREEN%2: FFMPEG (FFMPEG, FFPROBE, FFPLAY)%RESET%
 echo %GREEN%3: FFPROBE ONLY%RESET%
 echo %GREEN%4: FFPLAY ONLY%RESET%
-echo %GREEN%5: ALL%RESET%
+echo %GREEN%5: ALL LOCAL DEPENDENCY FILES%RESET%
 echo %CYAN%ENTER: GO BACK%RESET%
 set "x="&set /p "x="
 if "%x%"=="" goto dependencies
-call :banner
-if "%x%"=="1" (echo %RED%UNINSTALLING YT-DLP...%RESET%&winget uninstall --id yt-dlp.yt-dlp -e --accept-source-agreements >nul 2>&1&del /f /q "%~dp0DEPENDENCIES\yt-dlp.exe" >nul 2>&1&echo %GREEN%YT-DLP REMOVED.%RESET%)
-if "%x%"=="2" (echo %RED%UNINSTALLING FFMPEG SUITE...%RESET%&winget uninstall --id Gyan.FFmpeg -e --accept-source-agreements >nul 2>&1&del /f /q "%~dp0DEPENDENCIES\ff*.exe" >nul 2>&1&for /d %%D in ("%~dp0DEPENDENCIES\ffmpeg*") do rmdir /s /q "%%D"&echo %GREEN%FFMPEG, FFPROBE, AND FFPLAY REMOVED.%RESET%)
-if "%x%"=="3" (echo %RED%REMOVING FFPROBE...%RESET%&del /f /q "%~dp0DEPENDENCIES\ffprobe.exe" >nul 2>&1&echo %GREEN%FFPROBE REMOVED.%RESET%)
-if "%x%"=="4" (echo %RED%REMOVING FFPLAY...%RESET%&del /f /q "%~dp0DEPENDENCIES\ffplay.exe" >nul 2>&1&echo %GREEN%FFPLAY REMOVED.%RESET%)
-if "%x%"=="5" (echo %RED%UNINSTALLING ALL DEPENDENCIES...%RESET%&for %%P in (yt-dlp.yt-dlp Gyan.FFmpeg) do winget uninstall --id %%P -e --accept-source-agreements >nul 2>&1&rmdir /s /q "%~dp0DEPENDENCIES" >nul 2>&1&echo %GREEN%ALL LOCAL DEPENDENCIES REMOVED.%RESET%)
+if "%x%"=="1" (
+    del /f /q "%~dp0DEPENDENCIES\yt-dlp.exe" >nul 2>&1
+    echo %GREEN%LOCAL YT-DLP FILE REMOVED IF IT WAS PRESENT. WINGET PACKAGES WERE NOT UNINSTALLED.%RESET%
+)
+if "%x%"=="2" (
+    del /f /q "%~dp0DEPENDENCIES\ffmpeg.exe" "%~dp0DEPENDENCIES\ffprobe.exe" "%~dp0DEPENDENCIES\ffplay.exe" >nul 2>&1
+    for /d %%D in ("%~dp0DEPENDENCIES\ffmpeg*") do if exist "%%~fD" rmdir /s /q "%%~fD"
+    echo %GREEN%LOCAL FFMPEG FILES REMOVED IF PRESENT. WINGET PACKAGES WERE NOT UNINSTALLED.%RESET%
+)
+if "%x%"=="3" (
+    del /f /q "%~dp0DEPENDENCIES\ffprobe.exe" >nul 2>&1
+    echo %GREEN%LOCAL FFPROBE FILE REMOVED IF IT WAS PRESENT.%RESET%
+)
+if "%x%"=="4" (
+    del /f /q "%~dp0DEPENDENCIES\ffplay.exe" >nul 2>&1
+    echo %GREEN%LOCAL FFPLAY FILE REMOVED IF IT WAS PRESENT.%RESET%
+)
+if "%x%"=="5" (
+    if exist "%~dp0DEPENDENCIES" rmdir /s /q "%~dp0DEPENDENCIES"
+    echo %GREEN%LOCAL DEPENDENCIES FOLDER REMOVED. WINGET PACKAGES WERE NOT UNINSTALLED.%RESET%
+)
+if not "%x%"=="1" if not "%x%"=="2" if not "%x%"=="3" if not "%x%"=="4" if not "%x%"=="5" goto dependencies
 set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
 goto dependencies
 
@@ -192,10 +258,10 @@ goto dependencies
 call :banner
 for %%D in (yt-dlp ffmpeg ffprobe ffplay) do if exist "%~dp0DEPENDENCIES\%%D.exe" (set "st_%%D=%YELLOW%INSTALLED") else (set "st_%%D=%RED%NOT INSTALLED")
 set "vc=0"
-if exist "%~dp0VIDEOS\*" for /f %%A in ('dir /b /s /a-d "%~dp0VIDEOS\*.mp4" "%~dp0VIDEOS\*.mp3" 2^>nul ^| find /c /v ""') do set "vc=%%A"
+if exist "%~dp0VIDEOS\*" for /f %%A in ('powershell -NoProfile -Command "$p=$args[0]; if (Test-Path -LiteralPath $p) { (Get-ChildItem -LiteralPath $p -File -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\.(mp4|mp3|mkv|webm|m4a|wav|mov|avi|flv|ogg|opus|aac|wmv)$' } | Measure-Object).Count } else { 0 }" "%~dp0VIDEOS"') do set "vc=%%A"
 echo %RED%VOSVIDEODOWNLOAD SETTINGS%RESET%
 echo %GREEN%VERSION: %YELLOW%%VERSION% ^| %VERSION_TYPE%%RESET%
-echo %GREEN%INTENDED OPERATING SYSTEM: %YELLOW%WINDOWS11/PC%RESET%
+echo %GREEN%INTENDED OPERATING SYSTEM: %YELLOW%%OPERATING_SYSTEM%%RESET%
 echo %GREEN%DEPENDENCIES:%RESET%
 echo %GREEN% - YT-DLP: %st_yt-dlp%%RESET%
 echo %GREEN% - FFMPEG: %st_ffmpeg%%RESET%
