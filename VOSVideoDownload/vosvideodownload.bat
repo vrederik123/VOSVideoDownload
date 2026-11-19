@@ -2,7 +2,7 @@
 :: ANY FALSE USE OF THIS PROGRAM CAN RESULT IN COPYRIGHT INFRINGEMENT TO THE RESPECTIVE AUTHORS.
 @echo off
 title VOSVIDEODOWNLOAD
-set "VERSION=1.02.90"
+set "VERSION=1.02.91"
 set "VERSION_TYPE=DEVELOPMENT"
 set "OPERATING_SYSTEM=Windows 11/PC"
 set "UPDATE_URL=https://raw.githubusercontent.com/vrederik123/VOSVideoDownload/main/VOSVideoDownload/vosvideodownload.bat"
@@ -91,14 +91,14 @@ call :banner
 echo %RED%CHECKING FOR VOSVIDEODOWNLOAD UPDATES...%RESET%
 set "updateFile=%TEMP%\VOSVideoDownload-latest-%RANDOM%.bat"
 set "updateHelper=%TEMP%\VOSVideoDownload-update-%RANDOM%.bat"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%UPDATE_URL%' -OutFile '%updateFile%'" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri $args[0] -OutFile $args[1]" "%UPDATE_URL%?cache=%RANDOM%%RANDOM%" "%updateFile%" >nul 2>&1
 if not exist "%updateFile%" (
     echo %RED%UNABLE TO DOWNLOAD THE UPDATE. CHECK THE UPDATE URL AND YOUR INTERNET CONNECTION.%RESET%
     set /p "e=%CYAN%PRESS ENTER TO CONTINUE%RESET%"
     goto menu
 )
 set "remoteVersion="
-for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath '%updateFile%'; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }"') do set "remoteVersion=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "$content=Get-Content -Raw -LiteralPath $args[0]; if ($content -match 'VERSION=([0-9]+(?:\.[0-9]+)*)') { $matches[1] }" "%updateFile%"') do set "remoteVersion=%%A"
 if "%remoteVersion%"=="" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE DOWNLOADED UPDATE DOES NOT CONTAIN A VALID VERSION.%RESET%
@@ -106,7 +106,7 @@ if "%remoteVersion%"=="" (
     goto menu
 )
 set "currentVersion=%VERSION%"
-for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]'%remoteVersion%'; [version]$old=[version]'%currentVersion%'; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }"') do set "updateStatus=%%A"
+for /f "delims=" %%A in ('powershell -NoProfile -Command "try { [version]$new=[version]$args[0]; [version]$old=[version]$args[1]; if ($new -gt $old) { 'NEW' } else { 'CURRENT' } } catch { 'INVALID' }" "%remoteVersion%" "%currentVersion%") do set "updateStatus=%%A"
 if "%updateStatus%"=="INVALID" (
     del /f /q "%updateFile%" >nul 2>&1
     echo %RED%THE UPDATE VERSION IS INVALID.%RESET%
@@ -123,15 +123,15 @@ echo %GREEN%UPDATE FOUND: %currentVersion% TO %remoteVersion%%RESET%
 set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
 (
     echo @echo off
-    echo timeout /t 2 /nobreak ^>nul
+    echo ping 127.0.0.1 -n 3 ^>nul
     echo copy /y "%updateFile%" "%~f0" ^>nul
     echo if errorlevel 1 goto cleanup
-    echo start "" "%~f0"
+    echo start "" /b "%~f0"
     echo :cleanup
     echo del /f /q "%updateFile%" ^>nul 2^>^&1
-    echo del /f /q "%%~f0" ^>nul 2^>^&1
+    echo del /f /q "%updateHelper%" ^>nul 2^>^&1
 ) > "%updateHelper%"
-start "" /b cmd /c "%updateHelper%"
+start "" /b cmd /d /c ""%updateHelper%""
 exit
 
 :dependencies
