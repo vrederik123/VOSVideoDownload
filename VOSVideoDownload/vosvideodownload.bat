@@ -154,6 +154,7 @@ set /p "e=%CYAN%PRESS ENTER TO APPLY THE UPDATE AND RESTART%RESET%"
     echo @echo off
     echo copy /y "%updateFile%" "%~f0" ^>nul
     echo if errorlevel 1 goto cleanup
+    echo if not exist "%~dp0history.txt" echo VOSVIDEODOWNLOAD UPDATE HISTORY LOG^>"%~dp0history.txt"
     echo powershell -NoProfile -Command "$date=Get-Date -Format 'MM/dd/yyyy'; $time=Get-Date -Format 'hh:mm tt'; $entry='UPDATE: %currentVersion% (%VERSION_TYPE%) '+[char]62+' %remoteVersion% (%remoteVersionType%) AT '+$date+' AT '+$time; Add-Content -LiteralPath '%~dp0history.txt' -Value $entry -Encoding UTF8"
     echo if errorlevel 1 echo WARNING: UPDATE INSTALLED, BUT THE UPDATE HISTORY COULD NOT BE WRITTEN.
     echo start "" /b "%~f0"
@@ -303,8 +304,12 @@ call :banner
 for %%D in (yt-dlp ffmpeg ffprobe ffplay) do if exist "%~dp0DEPENDENCIES\%%D.exe" (set "st_%%D=%YELLOW%INSTALLED") else (set "st_%%D=%RED%NOT INSTALLED")
 set "vc=0"
 if exist "%~dp0VIDEOS\*" for /f %%A in ('powershell -NoProfile -Command "$p='%~dp0VIDEOS'; if (Test-Path -LiteralPath $p) { (Get-ChildItem -LiteralPath $p -File -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\.(mp4|mp3|mkv|webm|m4a|wav|mov|avi|flv|ogg|opus|aac|wmv)$' } | Measure-Object).Count } else { 0 }"') do set "vc=%%A"
+set "updateCount=0"
+if exist "%~dp0history.txt" set "updateCount=ERROR"
+if exist "%~dp0history.txt" for /f %%A in ('powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $count=(Get-Content -LiteralPath '%~dp0history.txt' | Measure-Object -Line).Lines; [Math]::Max(0,$count-1)"') do set "updateCount=%%A"
 echo %RED%VOSVIDEODOWNLOAD SETTINGS%RESET%
 echo %GREEN%VERSION: %YELLOW%%VERSION% ^| %VERSION_TYPE%%RESET%
+echo %GREEN%UPDATES INSTALLED: %YELLOW%%updateCount%%RESET%
 echo %GREEN%INTENDED OPERATING SYSTEM: %YELLOW%%OPERATING_SYSTEM%%RESET%
 echo %GREEN%DEPENDENCIES:%RESET%
 echo %GREEN% - YT-DLP: %st_yt-dlp%%RESET%
